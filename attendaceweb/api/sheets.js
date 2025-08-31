@@ -1,73 +1,59 @@
-import { google } from 'googleapis';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const auth = new google.auth.GoogleAuth({
-  keyFile: path.join(process.cwd(), 'credentials.json'), // your downloaded service account key
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
-
-const sheets = google.sheets({ version: 'v4', auth });
-
-const SPREADSHEET_ID = "YOUR_SPREADSHEET_ID"; // Get from Google Sheets URL
+import { google } from "googleapis";
 
 export default async function handler(req, res) {
-  if (req.method === 'GET') {
-    // Login validation
-    const { studentID, password } = req.query;
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'AttendanceData!A2:H',
-    });
-    const rows = response.data.values || [];
+  const body = req.body;
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = process.env.SPREADSHEET_ID;
 
-    const user = rows.find(row => row[0] === studentID);
-    if (!user) {
-      return res.json({ success: false, message: "User not found. Sign up first." });
+  try {
+    if (body.action === "login") {
+      // Read sheet data
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Attendance!A:E",
+      });
+      const rows = response.data.values || [];
+
+      // Find student
+      let found = rows.find(r => r[1] === body.id);
+      if (!found) {
+        return res.json({ success: false, message: "Student ID not found. Please sign up first." });
+      }
+      if (found[2] !== body.password) {
+        return res.json({ success: false, message: "Incorrect password!" });
+      }
+
+      // Calculate overall
+      let percentages = found.slice(3).map(v => parseFloat(v) || 0);
+      let overall = 0;
+      if (percentages.length) {
+        overall = (percentages.reduce((a, b) => a + b, 0) / (percentages.length * 100)) * 100;
+      }
+
+      return res.json({ success: true, overall: overall.toFixed(2) });
     }
-    if (user[2] !== password) {
-      return res.json({ success: false, message: "Incorrect password." });
-    }
 
-    // Calculate overall
-    const weeks = user.slice(3).filter(Boolean).map(Number);
-    const overall = (weeks.reduce((a,b)=>a+b,0) / (weeks.length*100)) * 100;
-    return res.json({ success: true, overall });
-  }
-
-  if (req.method === 'POST') {
-    const { studentID, name, week, attendance } = req.body;
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'AttendanceData!A2:H',
-    });
-    const rows = response.data.values || [];
-
-    let rowIndex = rows.findIndex(r => r[0] === studentID);
-    if (rowIndex === -1) {
-      // New student
-      const newRow = [studentID, name, "password", "", "", "", "", ""];
-      newRow[2] = ""; // password set on signup
-      newRow[week+2] = attendance.toFixed(2);
+    if (body.action === "submit") {
+      // Append attendance data
       await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'AttendanceData!A2',
-        valueInputOption: 'RAW',
-        resource: { values: [newRow] }
+        spreadsheetId,
+        range: "Attendance!A:E",
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [[body.name, body.id, "", body.week, body.attendance]],
+        },
       });
-    } else {
-      // Update existing
-      const cell = `AttendanceData!D${rowIndex+2+week-1}`;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `AttendanceData!${String.fromCharCode(68+week-1)}${rowIndex+2}`,
-        valueInputOption: 'RAW',
-        resource: { values: [[attendance.toFixed(2)]] }
-      });
+
+      return res.json({ message: "Attendance submitted successfully!", overall: body.attendance });
     }
 
-    const weeks = rows[rowIndex]?.slice(3).filter(Boolean).map(Number) || [];
-    const overall = (weeks.reduce((a,b)=>a+b,0) / (weeks.length*100)) * 100;
-    return res.json({ success: true, overall });
+    res.json({ message: "Invalid action." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error", error: err.message });
   }
 }

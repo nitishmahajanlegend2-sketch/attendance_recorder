@@ -1,40 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login | Attendance</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Attendance Recorder</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .hidden { display: none; }
+    input, button { margin: 5px 0; padding: 8px; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Login</h1>
-    <input type="text" id="studentID" placeholder="Enter Student ID">
-    <input type="password" id="password" placeholder="Enter Password">
+  <h1>Attendance Recorder</h1>
+
+  <!-- Login Section -->
+  <div id="login-section">
+    <h2>Login</h2>
+    <input type="text" id="login-student-id" placeholder="Student ID" /><br>
+    <input type="password" id="login-password" placeholder="Password" /><br>
     <button onclick="login()">Login</button>
-    <p>First time? Enter a new Student ID and Password to sign up.</p>
-    <div id="loginMessage"></div>
+    <p id="login-message"></p>
+  </div>
+
+  <!-- Attendance Form Section -->
+  <div id="attendance-section" class="hidden">
+    <h2>Submit Attendance</h2>
+    <input type="text" id="student-name" placeholder="Name" /><br>
+    <input type="text" id="student-id" placeholder="Student ID" /><br>
+    <select id="week">
+      <option value="Week 1">Week 1</option>
+      <option value="Week 2">Week 2</option>
+      <option value="Week 3">Week 3</option>
+      <option value="Week 4">Week 4</option>
+      <option value="Week 5">Week 5</option>
+    </select><br>
+    <input type="number" id="attendance" placeholder="Attendance %" /><br>
+    <button onclick="submitAttendance()">Submit Attendance</button>
+    <p id="attendance-message"></p>
+    <h3 id="overall-attendance"></h3>
   </div>
 
   <script>
-    async function login() {
-      const id = document.getElementById('studentID').value;
-      const pass = document.getElementById('password').value;
+    let loggedInStudent = null;
 
-      if (!id || !pass) {
-        document.getElementById('loginMessage').innerText = "Please fill both fields.";
+    async function login() {
+      const id = document.getElementById('login-student-id').value;
+      const password = document.getElementById('login-password').value;
+
+      if (!id || !password) {
+        document.getElementById('login-message').innerText = "Enter Student ID and Password!";
         return;
       }
 
-      const res = await fetch('/api/sheets?studentID=' + id + '&password=' + pass);
-      const data = await res.json();
+      // Call backend API for login
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', id, password })
+      });
 
+      const data = await res.json();
       if (data.success) {
-        localStorage.setItem('studentID', id);
-        localStorage.setItem('password', pass);
-        window.location.href = "dashboard.html";
+        loggedInStudent = id;
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('attendance-section').classList.remove('hidden');
+        document.getElementById('student-id').value = id;
+        document.getElementById('overall-attendance').innerText = `Your Overall Attendance: ${data.overall}%`;
       } else {
-        document.getElementById('loginMessage').innerText = data.message;
+        document.getElementById('login-message').innerText = data.message;
+      }
+    }
+
+    async function submitAttendance() {
+      const name = document.getElementById('student-name').value;
+      const id = document.getElementById('student-id').value;
+      const week = document.getElementById('week').value;
+      const attendance = document.getElementById('attendance').value;
+
+      if (!name || !id || !attendance) {
+        document.getElementById('attendance-message').innerText = "Fill all fields!";
+        return;
+      }
+
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'submit', name, id, week, attendance })
+      });
+
+      const data = await res.json();
+      document.getElementById('attendance-message').innerText = data.message;
+      if (data.overall) {
+        document.getElementById('overall-attendance').innerText = `Your Overall Attendance: ${data.overall}%`;
       }
     }
   </script>

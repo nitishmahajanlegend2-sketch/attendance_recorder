@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Attendance Calculator</h1>
+    <p id="note">Note: Weekly attendance should be above 75% to maintain overall attendance above 75%.</p>
+
+    <input type="text" id="name" placeholder="Enter your name">
+    <input type="text" id="studentID" placeholder="Enter your Student ID">
+    <input type="number" id="week" placeholder="Enter Week Number (1-5)" min="1" max="5">
+
+    <select id="subject">
+      <option value="0">Maths</option>
+      <option value="1">Maths(T)</option>
+      <option value="2">Eng graphics</option>
+      <option value="3">Eng graphics(lab)</option>
+      <option value="4">Eng mechanics</option>
+      <option value="5">Eng mechanics(T)</option>
+      <option value="6">Physics</option>
+      <option value="7">Physics(lab)</option>
+      <option value="8">Punjabi comp</option>
+      <option value="9">Punjabi basic</option>
+    </select>
+
+    <input type="number" id="holidays" placeholder="Number of holidays" min="0">
+    <input type="number" id="attended" placeholder="Number of attended classes" min="0">
+    <button onclick="calculate()">Calculate</button>
+
+    <div class="result" id="result"></div>
+    <div class="result" id="overall"></div>
+  </div>
+
+  <script>
+    const subjects = ["Maths","Maths(T)","Eng graphics","Eng graphics(lab)","Eng mechanics","Eng mechanics(T)","Physics","Physics(lab)","Punjabi comp","Punjabi basic"];
+    const num = [3,1,3,1,3,1,3,1,2,2];
+
+    async function calculate() {
+      const week = parseInt(document.getElementById("week").value);
+      const holidays = parseFloat(document.getElementById("holidays").value) || 0;
+      const attended = parseFloat(document.getElementById("attended").value) || 0;
+      const studentID = document.getElementById("studentID").value;
+      const name = document.getElementById("name").value;
+      const subjectIndex = document.getElementById("subject").value;
+
+      const totalClasses = num[subjectIndex] - holidays;
+      if (!week || totalClasses <= 0) {
+        document.getElementById("result").innerText = "Invalid input.";
+        return;
+      }
+
+      const attendancePercent = (attended / totalClasses) * 100;
+      document.getElementById("result").innerHTML = `Week ${week} Attendance: <strong>${attendancePercent.toFixed(2)}%</strong>`;
+
+      // Send data to backend
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentID, name, week, attendance: attendancePercent })
+      });
+      const data = await res.json();
+
+      if (data.overall) {
+        document.getElementById("overall").innerHTML = `Overall Attendance: <strong>${data.overall.toFixed(2)}%</strong>`;
+      }
+    }
+  </script>
+</body>
+</html>

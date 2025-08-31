@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Attendance</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Login</h1>
+    <input type="text" id="studentID" placeholder="Enter Student ID">
+    <input type="password" id="password" placeholder="Enter Password">
+    <button onclick="login()">Login</button>
+    <p>First time? Enter a new Student ID and Password to sign up.</p>
+    <div id="loginMessage"></div>
+  </div>
+
+  <script>
+    async function login() {
+      const id = document.getElementById('studentID').value;
+      const pass = document.getElementById('password').value;
+
+      if (!id || !pass) {
+        document.getElementById('loginMessage').innerText = "Please fill both fields.";
+        return;
+      }
+
+      const res = await fetch('/api/sheets?studentID=' + id + '&password=' + pass);
+      const data = await res.json();
+
+      if (data.success) {
+        localStorage.setItem('studentID', id);
+        localStorage.setItem('password', pass);
+        window.location.href = "dashboard.html";
+      } else {
+        document.getElementById('loginMessage').innerText = data.message;
+      }
+    }
+  </script>
+</body>
+</html>
